@@ -142,19 +142,8 @@ data <- data %>%
   ))
 
 #Remove standard wells
-
-data <- data[!(data$Well == "A11,A12" |
-                 data$Well == "A1" |
-                 data$Well == "A2" |
-                 data$Well == "A3" |
-                 data$Well == "A4" |
-                 data$Well == "A5" |
-                 data$Well == "A6" |
-                 data$Well == "A7" |
-                 data$Well == "A8" |
-                 data$Well == "A9" |
-                 data$Well == "A10"
-),]
+std_wells <- c("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11,A12")
+data <- data[!(data$Well %in% std_wells), ]
 
 # Remove "*", "OOR <" and "OOR >" from the Obs.conc column of data and coerce them to class numeric
 
