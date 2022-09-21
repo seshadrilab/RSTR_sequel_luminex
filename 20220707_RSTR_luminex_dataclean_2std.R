@@ -225,158 +225,18 @@ data[is.na(data)] = 0 #Maybe don't use this
 
 # Remove background DMSO signal from corresponding conditions - FIGURE THIS OUT For loop this for each cytokine
 
-GMCSF_dmso <- data %>% 
-  filter(Analyte == "GM-CSF (44)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
+data <- data %>%
+  mutate(Row = substr(Well, 1, 1), .after = Well)
 
-## Create a separate data frame that can be used to calculate the background (DMSO) corrected cytokine values/MFI:
-
-df_DMSO <- GMCSF_dmso
-
-IFNA_dmso <- data %>% 
-  filter(Analyte == "INF alpha (48)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IFNA_dmso)
-
-IFNY_dmso <- data %>% 
-  filter(Analyte == "INF gamma (43)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IFNY_dmso)
-
-IL1a_dmso <- data %>% 
-  filter(Analyte == "IL-1 alpha (62)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL1a_dmso)
-
-IL1b_dmso <- data %>% 
-  filter(Analyte == "IL-1 beta (18)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL1b_dmso)
-
-IL10_dmso <- data %>% 
-  filter(Analyte == "IL-10 (28)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL10_dmso)
-
-IL12p70_dmso <- data %>% 
-  filter(Analyte == "IL-12p70 (34)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL12p70_dmso)
-
-IL13_dmso <- data %>% 
-  filter(Analyte == "IL-13 (35)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL13_dmso)
-
-IL15_dmso <- data %>% 
-  filter(Analyte == "IL-15 (65)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL15_dmso)
-
-IL17A_dmso <- data %>% 
-  filter(Analyte == "IL-17A (36)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL17A_dmso)
-
-IL18_dmso <- data %>% 
-  filter(Analyte == "IL-18 (66)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL18_dmso)
-
-IL1RA_dmso <- data %>% 
-  filter(Analyte == "IL-1RA (38)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL1RA_dmso)
-
-IL2_dmso <- data %>% 
-  filter(Analyte == "IL-2 (19)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL2_dmso)
-
-IL21_dmso <- data %>% 
-  filter(Analyte == "IL-21 (72)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL21_dmso)
-
-IL22_dmso <- data %>% 
-  filter(Analyte == "IL-22 (76)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL22_dmso)
-
-IL23_dmso <- data %>% 
-  filter(Analyte == "IL-23 (63)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL23_dmso)
-
-IL27_dmso <- data %>% 
-  filter(Analyte == "IL-27 (14)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL27_dmso)
-
-IL31_dmso <- data %>% 
-  filter(Analyte == "IL-31 (37)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL31_dmso)
-
-IL4_dmso <- data %>% 
-  filter(Analyte == "IL-4 (20)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL4_dmso)
-
-IL5_dmso <- data %>% 
-  filter(Analyte == "IL-5 (21)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL5_dmso)
-
-IL6_dmso <- data %>% 
-  filter(Analyte == "IL-6 (25)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL6_dmso)
-
-IL7_dmso <- data %>% 
-  filter(Analyte == "IL-7 (26)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL7_dmso)
-
-IL8_dmso <- data %>% 
-  filter(Analyte == "IL-8 (27)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL8_dmso)
-
-IL9_dmso <- data %>% 
-  filter(Analyte == "IL-9 (52)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IL9_dmso)
-
-IP10_dmso <- data %>% 
-  filter(Analyte == "IP-10 (22)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, IP10_dmso)
-
-TNFa_dmso <- data %>% 
-  filter(Analyte == "TNF-alpha (45)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, TNFa_dmso)
-
-TNFb_dmso <- data %>% 
-  filter(Analyte == "TNF-beta (54)" & stimulation == "DMSO") %>% 
-  slice(rep(1:n(),3))
-df_DMSO <- bind_rows(df_DMSO, TNFb_dmso)
-
-df_DMSO[is.na(df_DMSO)] = 0
-
-df_DMSO <- df_DMSO %>% 
-  select(final_conc, final_MFI) %>%
+dmso_df <- data %>%
+  filter(stimulation == "DMSO") %>%
+  select(Analyte, timepoint, Row, final_conc, final_MFI) %>%
   rename("DMSO_final_conc" = "final_conc",
          "DMSO_final_MFI" = "final_MFI")
 
-## Next subtract the DMSO from the cytokine signal and create a new column filled with this data
-
-data <- bind_cols(data, df_DMSO)
-
-data <- data %>% 
-        mutate(conc_bkgd_corr = data$final_conc - data$DMSO_final_conc) %>%
-        mutate(mfi_bkgd_corr = as.numeric(data$final_MFI) - as.numeric(data$DMSO_final_MFI)) 
+data <- left_join(data, dmso_df, by = c("Analyte", "timepoint", "Row")) %>%
+  mutate(conc_bkgd_corr = final_conc - DMSO_final_conc) %>%
+  mutate(mfi_bkgd_corr = final_MFI - DMSO_final_MFI)
   
 #Export data for further analysis
 if(batch == 1){
