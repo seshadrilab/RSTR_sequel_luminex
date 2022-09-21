@@ -13,9 +13,11 @@ date <- 20220707
 
 # Read in all batches from a single directory and row bind them.
 
-setwd('G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/luminex')
-df_RSTR_comb <- list.files(path = 'G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/luminex') %>% 
-  lapply(read_csv) %>% 
+#setwd('G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/luminex')
+setwd('~/GoogleDrive/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/luminex')
+df_RSTR_comb <- list.files() %>% 
+  lapply(read_csv) %>%
+  map(~ mutate(.x, across("PTID", as.character))) %>% 
   bind_rows
 
 # Add the correct PTID information so that it matches the flow PTIDS
