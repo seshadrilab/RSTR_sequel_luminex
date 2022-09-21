@@ -146,16 +146,17 @@ std_wells <- c("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11
 data <- data[!(data$Well %in% std_wells), ]
 
 # Remove "*", "OOR <" and "OOR >" from the Obs.conc column of data and coerce them to class numeric
-
-data$Obs.Conc <- gsub("OOR <", 0, data$Obs.Conc)
-data$Obs.Conc <- gsub("\\*", "", data$Obs.Conc)
-data$Obs.Conc <- gsub("OOR >",9999, data$Obs.Conc)
-data$Obs.Conc <- as.numeric(data$Obs.Conc)
+data$Obs.Conc <- data$Obs.Conc %>%
+  gsub("OOR <", 0, .) %>%
+  gsub("\\*", "", .) %>%
+  gsub("OOR >", 9999, .) %>%
+  as.numeric(.)
 
 # Calculate correct concentration (corrected for dilution factor)
-
-data <- mutate(data, final_conc =  as.numeric(data$Obs.Conc)/as.numeric(data$df_exp)) %>%
-        mutate(data, final_MFI =  as.numeric(data$FI...Bkgd)/as.numeric(data$df_exp))
+# Note that samples with no data (data$FI...Bkgd == "***") get coerced to NA
+data <- data %>%
+  mutate(final_conc = data$Obs.Conc/data$df_exp) %>%
+  mutate(final_MFI =  as.numeric(data$FI...Bkgd)/data$df_exp)
                                     
 #Assign batch number to each plate
 

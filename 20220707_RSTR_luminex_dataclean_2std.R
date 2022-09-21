@@ -167,10 +167,11 @@ data <- data[!(data$Well == std_wells),]
 
 # Remove "*", "OOR <" and "OOR >" from the Obs.conc column of data and coerce them to class numeric
 
-data$Obs.Conc <- gsub("OOR <", 0, data$Obs.Conc)
-data$Obs.Conc <- gsub("\\*", "", data$Obs.Conc)
-data$Obs.Conc <- gsub("OOR >",9999, data$Obs.Conc)
-data$Obs.Conc <- as.numeric(data$Obs.Conc)
+data$Obs.Conc <- data$Obs.Conc %>%
+  gsub("OOR <", 0, .) %>%
+  gsub("\\*", "", .) %>%
+  gsub("OOR >", 9999, .) %>%
+  as.numeric(.)
 
 
 # Upper limits to use "OOR >"
@@ -206,8 +207,9 @@ data$Obs.Conc <- as.numeric(data$Obs.Conc)
 
 # Calculate correct concentration/MF (i.e. taking into account he DF)
 
-data <- mutate(data, final_conc =  as.numeric(data$Obs.Conc)/as.numeric(data$df_exp))
-data <- mutate(data, final_MFI =  as.numeric(data$FI...Bkgd)/as.numeric(data$df_exp))
+data <- data %>%
+  mutate(final_conc = data$Obs.Conc/data$df_exp) %>%
+  mutate(final_MFI =  as.numeric(data$FI...Bkgd)/data$df_exp)
 
                                     
 #Assign batch number to each plate
