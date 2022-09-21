@@ -166,7 +166,7 @@ plotdata1 <- function(x) {
     )
 }
 
-lapply(seq_len(length(analyte_list_noDMSO)), plotdata1)
+# lapply(seq_len(length(analyte_list_noDMSO)), plotdata1)
 
 ## (NOT IN USE) Plot the raw data over time (i.e. no background correction)
 
@@ -193,7 +193,7 @@ plotdata2 <- function(x) {
 
 }
 
-lapply(seq_len(length(analyte_list)), plotdata2)
+# lapply(seq_len(length(analyte_list)), plotdata2)
 
 ## (IN USE) Plot all cytokines as a measure  background corrected MFI values over time (i.e. DMSO subtracted)
 
@@ -269,33 +269,33 @@ df_RSTR_meta <- df_RSTR_umap %>%
 
 ## Run UMAP
 
-umap_fit <- df_RSTR_umap %>%
-  select(where(is.numeric)) %>%
-  select(ID, final_conc) %>%
-  column_to_rownames("ID") %>%
-  scale() %>% 
-  uwot::umap(
-    n_neighbors = 15,
-    min_dist = 0.01
-  )
-
-## Generate the UMAP plot
-
-umap_df <- umap_fit%>%   #if using umap::umap: umap_fit$layout %>%
-  as.data.frame()%>%
-  rename(UMAP1="V1",
-         UMAP2="V2") %>%
-  mutate(ID=row_number())%>%
-  inner_join(df_RSTR_meta, by="ID")
-
-umap_df %>%
-  ggplot(aes(x = UMAP1, 
-             y = UMAP2, 
-             color = batch,
-             shape = group)) +
-  geom_point() +
-  labs(x = "UMAP1",
-       y = "UMAP2",
-       subtitle = "UMAP plot") +
-  theme(plot.title = element_text(hjust = 0.5))
+# umap_fit <- df_RSTR_umap %>%
+#   select(where(is.numeric)) %>%
+#   select(ID, final_conc) %>%
+#   column_to_rownames("ID") %>%
+#   scale() %>% 
+#   uwot::umap(
+#     n_neighbors = 15,
+#     min_dist = 0.01
+#   )
+# 
+# ## Generate the UMAP plot
+# 
+# umap_df <- umap_fit%>%   #if using umap::umap: umap_fit$layout %>%
+#   as.data.frame()%>%
+#   rename(UMAP1="V1",
+#          UMAP2="V2") %>%
+#   mutate(ID=row_number())%>%
+#   inner_join(df_RSTR_meta, by="ID")
+# 
+# umap_df %>%
+#   ggplot(aes(x = UMAP1, 
+#              y = UMAP2, 
+#              color = batch,
+#              shape = group)) +
+#   geom_point() +
+#   labs(x = "UMAP1",
+#        y = "UMAP2",
+#        subtitle = "UMAP plot") +
+#   theme(plot.title = element_text(hjust = 0.5))
 
