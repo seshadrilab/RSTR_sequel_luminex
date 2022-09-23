@@ -195,9 +195,9 @@ data$conc_5P_ng.mL <- gsub("<< Y range",0, data$conc_5P_ng.mL)
 
 # Convert to pg/mL and correct for dilution factor i.e. the real experimental concentration for both mfi and conc.
 
-data <- data %>%
-  mutate(conc_pg_df_cor = as.numeric(conc_5P_ng.mL) * 1000 / as.numeric(df_exp)) %>%
-  mutate(mfi_final =  as.numeric(data$blank_corr_OD)/as.numeric(data$df_exp))
+data2 <- data %>%
+  mutate(conc_pg_df_cor = as.numeric(conc_5P_ng.mL) * 1000 / df_exp) %>%
+  mutate(mfi_final =  as.numeric(blank_corr_OD) / df_exp)
 
 # Remove background DMSO signal from corresponding conditions 
 
@@ -213,8 +213,8 @@ TGFb1_dmso <- data %>%
 data <- bind_cols(data, TGFb1_dmso)
 
 data <- data %>% 
-        mutate(bkg_corr_pg.mL = data$conc_pg_df_cor - data$DMSO_final_conc) %>%
-        mutate(bkg_corr_MFI = data$mfi_final - data$DMSO_final_MFI)
+  mutate(bkg_corr_pg.mL = conc_pg_df_cor - DMSO_final_conc) %>%
+  mutate(bkg_corr_MFI = mfi_final - DMSO_final_MFI)
   
 # Export data for further analysis
 
