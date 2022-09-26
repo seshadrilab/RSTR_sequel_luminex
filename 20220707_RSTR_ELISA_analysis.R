@@ -7,7 +7,7 @@ library(readxl)
 
 date <- 20220707
 
-# Set WD
+# Set working directory
 
 setwd('G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/elisa')
 
