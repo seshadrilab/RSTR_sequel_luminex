@@ -278,8 +278,6 @@ umap_df %>%
 
 ## UMAP of bulk MFI data (i.e. not area under the curve (AUC)
 
-set.seed(date)
-
 df_mfi_umap <- df_RSTR_comb %>% 
   drop_na() %>%
   #  filter(Analyte == "IL-6") %>%
