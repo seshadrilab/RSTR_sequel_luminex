@@ -22,62 +22,7 @@ path <- 'G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/R
 
 df_RSTR_comb <- read_csv(path)
 
-## Make multiple data frames per patient, per analyte to use for AUC calculations.
-
-auc_split <- split(df_RSTR_comb, f = list(df_RSTR_comb$PTID, 
-                                          df_RSTR_comb$Analyte, 
-                                          df_RSTR_comb$stimulation,
-                                          df_RSTR_comb$batch))
-
-# Function to calculate the AUC per the factors defines above.
-
-## Define the AUC (MFI) for the non-background corrected secreted data.
-
-auc_fun1 <- function(x) { # Function to define the AUC 
-  timept <- x$timepoint
-  mfi <- x$final_MFI
-  out <- AUC(x = timept, 
-             y = mfi,
-             method = "trapezoid",
-             absolutearea = TRUE)
-  return(out)
-}
-
-df_auc1 <- sapply(auc_split, auc_fun1) %>%
-  as.data.frame() %>%
-  drop_na() %>%
-  rownames_to_column() %>%
-  setNames(c('rowname', 'AUC_nbc')) # AUC_nbc = not background corrected
-
-df_auc_meta <- str_split_fixed(df_auc1$rowname, "\\.", 4) %>%
-  as.data.frame() %>%
-  setNames(c('PTID', 'Analyte', 'stimulation', 'batch'))
-
-df_auc <- bind_cols(df_auc1, df_auc_meta)
-
-df_auc <- df_auc %>%
-  select(-rowname)
-
-# The following function will calculate the MFI for the background corrected AUC of the MFI over time
-
-auc_fun2 <- function(x) {
-  timept <- x$timepoint
-  mfi <- x$mfi_bkgd_corr
-  out <- AUC(x = timept, 
-             y = mfi,
-             method = "trapezoid",
-             absolutearea = TRUE)
-  return(out)
-}
-
-df_auc2 <- sapply(auc_split, auc_fun2) %>%
-  as.data.frame() %>%
-  na.omit() %>%
-  rownames_to_column()%>%
-  setNames(c('rowname', 'AUC_bc')) %>% # AUC_bc =  background corrected
-  select(-rowname)
-
-df_auc <- bind_cols(df_auc, df_auc2) # merge the two df's together for downstream analysis/graphing
+## AUC
 
 p_neg_ptids <- c("RS102052", "RS102058", "RS102096","RS102097","RS102128",
                  "RS102133","RS102148","RS102150","RS102161","RS102181",
@@ -89,16 +34,7 @@ tst_pos_ptids <- c("RS102056","RS102076","RS102088","RS102095","RS102111",
                    "RS102254","RS102284","RS102297","RS102301","RS102323",
                    "RS102332","RS102358","RS102361","RS102380","RS102410")
 
-df_auc <- df_auc %>%
-  mutate(group = case_when(PTID %in% p_neg_ptids ~ "P_neg",
-                           PTID %in% tst_pos_ptids ~ "TST_pos"
-  ))
-
-#########################################
-# EB: Calculate the AUCs with tidyverse #
-#########################################
-
-EB_df_auc <- df_RSTR_comb %>%
+df_auc <- df_RSTR_comb %>%
   mutate_at(c("batch"), as.character) %>%
   group_by(PTID, Analyte, stimulation, batch) %>%
   summarise(
@@ -125,21 +61,6 @@ EB_df_auc <- df_RSTR_comb %>%
     PTID %in% p_neg_ptids ~ "P_neg",
     PTID %in% tst_pos_ptids ~ "TST_pos"
   ))
-
-##############################################
-## Test that my method produces same result ##
-##############################################
-# Arrange by AUC_nbc so they're ordered the same and can be compared
-test_eb <- EB_df_auc %>%
-  arrange(AUC_nbc)
-
-test_orig <- df_auc %>%
-  arrange(AUC_nbc)
-
-all.equal(test_orig, test_eb)
-##############################################
-##############################################
-
 
 
 #Add additional Metadata using mutating joins
