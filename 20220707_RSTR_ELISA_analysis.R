@@ -364,8 +364,6 @@ ggplot(df_auc_mDMSO,
 
 ## Clean the data for UMAP using the concentration data
 
-set.seed(date)
-
 df_auc_umap <- df_auc %>% 
   drop_na() %>%
   #  filter(Analyte == "IL-6") %>%
