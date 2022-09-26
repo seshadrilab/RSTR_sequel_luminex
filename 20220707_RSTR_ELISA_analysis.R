@@ -251,6 +251,56 @@ df_auc <- df_auc %>%
                            PTID %in% tst_pos_ptids ~ "TST_pos"
   ))
 
+
+#########################################
+# EB: Calculate the AUCs with tidyverse #
+#########################################
+
+EB_df_auc <- df_RSTR_comb %>%
+  mutate_at(c("batch"), as.character) %>%
+  group_by(PTID, stimulation, batch) %>%
+  summarise(
+    # AUC (MFI) for non-background corrected data
+    AUC_nbc = AUC(
+      x = timepoint,
+      y = mfi_final,
+      method = "trapezoid",
+      absolutearea = TRUE
+    ),
+    # AUC (MFI) for background corrected secreted data
+    AUC_bc = AUC(
+      x = timepoint,
+      y = bkg_corr_MFI,
+      method = "trapezoid",
+      absolutearea = TRUE
+    )
+  ) %>%
+  as.data.frame() %>%
+  select(AUC_nbc, AUC_bc, PTID, stimulation, batch) %>%
+  drop_na() %>%
+  distinct() %>%
+  mutate(group = case_when(
+    PTID %in% p_neg_ptids ~ "P_neg",
+    PTID %in% tst_pos_ptids ~ "TST_pos"
+  )) %>%
+  select(AUC_nbc, PTID, stimulation, batch, AUC_bc, group)
+
+
+##############################################
+## Test that my method produces same result ##
+##############################################
+# Arrange by PTID so they're ordered the same and can be compared
+test_eb <- EB_df_auc %>%
+  arrange(PTID)
+
+test_orig <- df_auc %>%
+  arrange(PTID)
+
+all.equal(test_orig, test_eb)
+##############################################
+##############################################
+
+
 #Add additional Metadata using mutating joins
 
 RSTR_metadata <- read_excel('G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/data/metadata/RSTR_sequel_metadata.xlsx') %>%
