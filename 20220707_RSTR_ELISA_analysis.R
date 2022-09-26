@@ -75,8 +75,9 @@ tst_pos_ptids <- c("RS102056","RS102076","RS102088","RS102095","RS102111",
                    "RS102332","RS102358","RS102361","RS102380","RS102410")
 
 df_RSTR_comb <- df_RSTR_comb %>%
-  mutate(group = case_when(PTID %in% p_neg_ptids ~ "P_neg",
-                             PTID %in% tst_pos_ptids ~ "TST_pos"
+  mutate(group = case_when(
+    PTID %in% p_neg_ptids ~ "P_neg",
+    PTID %in% tst_pos_ptids ~ "TST_pos"
   ))
 
 # Plot the data
@@ -175,6 +176,7 @@ ggplot(df_RSTR_comb,
                      symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), 
                                         symbols = c("****", "***", "**", "*", "ns")))
 
+
 # Calculate the AUC
 
 auc_split <- split(df_RSTR_comb, f = list(df_RSTR_comb$PTID, 
@@ -197,7 +199,7 @@ auc_fun1 <- function(x) { # Function to define the AUC
 
 df_auc1 <- sapply(auc_split, auc_fun1) %>%
   as.data.frame() %>%
-  na.omit() %>%
+  drop_na() %>%
   rownames_to_column() %>%
   setNames(c('rowname', 'AUC_nbc')) # AUC_nbc = not background corrected
 
@@ -209,6 +211,7 @@ df_auc <- bind_cols(df_auc1, df_auc_meta)
 
 df_auc <- df_auc %>%
   select(-rowname)
+
 
 # The following function will calculate the MFI for the background corrected AUC of the MFI over time
 
