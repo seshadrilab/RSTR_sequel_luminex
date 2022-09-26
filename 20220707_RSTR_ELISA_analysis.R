@@ -408,47 +408,47 @@ umap_df %>%
 
 ## UMAP of bulk MFI data (i.e. not area under the curve (AUC)
 
-set.seed(date)
+# TODO: Decide whether to do UMAP or some other analysis here
 
-df_mfi_umap <- df_RSTR_comb %>% 
-  drop_na() %>%
-  #  filter(Analyte == "IL-6") %>%
-  mutate(ID = row_number()) 
-
-df_mfi_meta <- df_mfi_umap %>%
-  select(ID, batch, group, PTID) #ADULT_RISK_TBINF, M0_KCVSEX, KCHCA_AGE_YR_CURRENT)
-
-## Run UMAP
-
-umap_fit <- df_mfi_umap %>%
-  select(ID, mfi_final) %>%
-  select(where(is.numeric)) %>%
-  #  select(ID, AUC_bc) %>%
-  column_to_rownames("ID") %>%
-  scale() %>% 
-  uwot::umap(n_neighbors = 15   #n_neighbors = nearest neighbors = perplexity. Default = 15
-  )
-
-## Generate the UMAP plot
-
-umap_df <- umap_fit %>%   #if using umap::umap: umap_fit$layout %>%
-  as.data.frame() %>%
-  rename(UMAP1="V1",
-         UMAP2="V2") %>%
-  mutate(ID = row_number()) %>%
-  inner_join(df_mfi_meta, by = "ID")
-
-umap_df %>%
-  #  filter(Analyte == "IL-4") %>%
-  ggplot(aes(x = UMAP1, 
-             y = UMAP2, 
-             color = factor(batch),
-             shape = group)) +
-  geom_point(size = 3, position = position_jitter(h = 0.15, w = 0.15)) +
-  labs(shape = "Group",
-       color = "Batch",
-       x = "UMAP1",
-       y = "UMAP2") +
-  ggtitle("UMAP Plot")+
-  theme(plot.title = element_text(hjust = 0.5))
+# df_mfi_umap <- df_RSTR_comb %>%
+#   drop_na() %>%
+#   #  filter(Analyte == "IL-6") %>%
+#   mutate(ID = row_number())
+# 
+# df_mfi_meta <- df_mfi_umap %>%
+#   select(ID, batch, group, PTID) #ADULT_RISK_TBINF, M0_KCVSEX, KCHCA_AGE_YR_CURRENT)
+# 
+# ## Run UMAP
+# 
+# umap_fit_mfi <- df_mfi_umap %>%
+#   select(ID, mfi_final) %>%
+#   select(where(is.numeric)) %>%
+#   #  select(ID, AUC_bc) %>%
+#   column_to_rownames("ID") %>%
+#   scale() %>%
+#   uwot::umap(n_neighbors = 15   #n_neighbors = nearest neighbors = perplexity. Default = 15
+#   )
+# 
+# ## Generate the UMAP plot
+# 
+# umap_df_mfi <- umap_fit_mfi %>%   #if using umap::umap: umap_fit$layout %>%
+#   as.data.frame() %>%
+#   rename(UMAP1="V1",
+#          UMAP2="V2") %>%
+#   mutate(ID = row_number()) %>%
+#   inner_join(df_mfi_meta, by = "ID")
+# 
+# umap_df %>%
+#   #  filter(Analyte == "IL-4") %>%
+#   ggplot(aes(x = UMAP1, 
+#              y = UMAP2, 
+#              color = factor(batch),
+#              shape = group)) +
+#   geom_point(size = 3, position = position_jitter(h = 0.15, w = 0.15)) +
+#   labs(shape = "Group",
+#        color = "Batch",
+#        x = "UMAP1",
+#        y = "UMAP2") +
+#   ggtitle("UMAP Plot")+
+#   theme(plot.title = element_text(hjust = 0.5))
 
