@@ -13,8 +13,9 @@ setwd('G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RST
 
 # Read in all batches from a single directory and row bind them.
 
-df_RSTR_comb <- list.files(path = 'G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/elisa') %>% 
-  lapply(read_csv) %>% 
+df_RSTR_comb <- list.files() %>%
+  lapply(read_csv) %>%
+  map(~ mutate(.x, across("PTID", as.character))) %>%
   bind_rows
 
 # Add the correct PTID information so that it matches the flow PTIDS
