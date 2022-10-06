@@ -7,14 +7,15 @@ library(readxl)
 
 date <- 20220707
 
-# Set WD
+# Set working directory
 
 setwd('G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/elisa')
 
 # Read in all batches from a single directory and row bind them.
 
-df_RSTR_comb <- list.files(path = 'G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/elisa') %>% 
-  lapply(read_csv) %>% 
+df_RSTR_comb <- list.files() %>%
+  lapply(read_csv) %>%
+  map(~ mutate(.x, across("PTID", as.character))) %>%
   bind_rows
 
 # Add the correct PTID information so that it matches the flow PTIDS
@@ -74,8 +75,9 @@ tst_pos_ptids <- c("RS102056","RS102076","RS102088","RS102095","RS102111",
                    "RS102332","RS102358","RS102361","RS102380","RS102410")
 
 df_RSTR_comb <- df_RSTR_comb %>%
-  mutate(group = case_when(PTID %in% p_neg_ptids ~ "P_neg",
-                             PTID %in% tst_pos_ptids ~ "TST_pos"
+  mutate(group = case_when(
+    PTID %in% p_neg_ptids ~ "P_neg",
+    PTID %in% tst_pos_ptids ~ "TST_pos"
   ))
 
 # Plot the data
@@ -174,78 +176,36 @@ ggplot(df_RSTR_comb,
                      symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), 
                                         symbols = c("****", "***", "**", "*", "ns")))
 
-# Calculate the AUC
+# Calculate AUCs
 
-auc_split <- split(df_RSTR_comb, f = list(df_RSTR_comb$PTID, 
-                                          df_RSTR_comb$stimulation,
-                                          df_RSTR_comb$batch))
-
-# Function to calculate the AUC per the factors defines above.
-
-## Define the AUC (MFI) for the non-background corrected secreted data.
-
-auc_fun1 <- function(x) { # Function to define the AUC 
-  timept <- x$timepoint
-  mfi <- x$mfi_final
-  out <- AUC(x = timept, 
-             y = mfi,
-             method = "trapezoid",
-             absolutearea = TRUE)
-  return(out)
-}
-
-df_auc1 <- sapply(auc_split, auc_fun1) %>%
+df_auc <- df_RSTR_comb %>%
+  mutate_at(c("batch"), as.character) %>%
+  group_by(PTID, stimulation, batch) %>%
+  summarise(
+    # AUC (MFI) for non-background corrected data
+    AUC_nbc = AUC(
+      x = timepoint,
+      y = mfi_final,
+      method = "trapezoid",
+      absolutearea = TRUE
+    ),
+    # AUC (MFI) for background corrected secreted data
+    AUC_bc = AUC(
+      x = timepoint,
+      y = bkg_corr_MFI,
+      method = "trapezoid",
+      absolutearea = TRUE
+    )
+  ) %>%
   as.data.frame() %>%
-  na.omit() %>%
-  rownames_to_column() %>%
-  setNames(c('rowname', 'AUC_nbc')) # AUC_nbc = not background corrected
-
-df_auc_meta <- str_split_fixed(df_auc1$rowname, "\\.", 3) %>%
-  as.data.frame() %>%
-  setNames(c('PTID', 'stimulation', 'batch'))
-
-df_auc <- bind_cols(df_auc1, df_auc_meta)
-
-df_auc <- df_auc %>%
-  select(-rowname)
-
-# The following function will calculate the MFI for the background corrected AUC of the MFI over time
-
-auc_fun2 <- function(x) {
-  timept <- x$timepoint
-  mfi <- x$bkg_corr_MFI
-  out <- AUC(x = timept, 
-             y = mfi,
-             method = "trapezoid",
-             absolutearea = TRUE)
-  return(out)
-}
-
-df_auc2 <- sapply(auc_split, auc_fun2) %>%
-  as.data.frame() %>%
-  na.omit() %>%
-  rownames_to_column()%>%
-  setNames(c('rowname', 'AUC_bc')) %>% # AUC_bc =  background corrected
-  select(-rowname)
-
-df_auc <- bind_cols(df_auc, df_auc2)
-
-# Re-add group metadata
-
-p_neg_ptids <- c("RS102052", "RS102058", "RS102096","RS102097","RS102128",
-                 "RS102133","RS102148","RS102150","RS102161","RS102181",
-                 "RS102183","RS102198", "RS102209","RS102241","RS102294",
-                 "RS102310","RS102346","RS102351","RS102360","RS102377")
-
-tst_pos_ptids <- c("RS102056","RS102076","RS102088","RS102095","RS102111",
-                   "RS102180","RS102187","RS102217","RS102235","RS102248",
-                   "RS102254","RS102284","RS102297","RS102301","RS102323",
-                   "RS102332","RS102358","RS102361","RS102380","RS102410")
-
-df_auc <- df_auc %>%
-  mutate(group = case_when(PTID %in% p_neg_ptids ~ "P_neg",
-                           PTID %in% tst_pos_ptids ~ "TST_pos"
-  ))
+  select(AUC_nbc, AUC_bc, PTID, stimulation, batch) %>%
+  drop_na() %>%
+  distinct() %>%
+  mutate(group = case_when(
+    PTID %in% p_neg_ptids ~ "P_neg",
+    PTID %in% tst_pos_ptids ~ "TST_pos"
+  )) %>%
+  select(AUC_nbc, PTID, stimulation, batch, AUC_bc, group)
 
 #Add additional Metadata using mutating joins
 
@@ -310,8 +270,6 @@ ggplot(df_auc_mDMSO,
 
 ## Clean the data for UMAP using the concentration data
 
-set.seed(date)
-
 df_auc_umap <- df_auc %>% 
   drop_na() %>%
   #  filter(Analyte == "IL-6") %>%
@@ -356,47 +314,47 @@ umap_df %>%
 
 ## UMAP of bulk MFI data (i.e. not area under the curve (AUC)
 
-set.seed(date)
+# TODO: Decide whether to do UMAP or some other analysis here
 
-df_mfi_umap <- df_RSTR_comb %>% 
-  drop_na() %>%
-  #  filter(Analyte == "IL-6") %>%
-  mutate(ID = row_number()) 
-
-df_mfi_meta <- df_mfi_umap %>%
-  select(ID, batch, group, PTID) #ADULT_RISK_TBINF, M0_KCVSEX, KCHCA_AGE_YR_CURRENT)
-
-## Run UMAP
-
-umap_fit <- df_mfi_umap %>%
-  select(ID, mfi_final) %>%
-  select(where(is.numeric)) %>%
-  #  select(ID, AUC_bc) %>%
-  column_to_rownames("ID") %>%
-  scale() %>% 
-  uwot::umap(n_neighbors = 15   #n_neighbors = nearest neighbors = perplexity. Default = 15
-  )
-
-## Generate the UMAP plot
-
-umap_df <- umap_fit %>%   #if using umap::umap: umap_fit$layout %>%
-  as.data.frame() %>%
-  rename(UMAP1="V1",
-         UMAP2="V2") %>%
-  mutate(ID = row_number()) %>%
-  inner_join(df_mfi_meta, by = "ID")
-
-umap_df %>%
-  #  filter(Analyte == "IL-4") %>%
-  ggplot(aes(x = UMAP1, 
-             y = UMAP2, 
-             color = factor(batch),
-             shape = group)) +
-  geom_point(size = 3, position = position_jitter(h = 0.15, w = 0.15)) +
-  labs(shape = "Group",
-       color = "Batch",
-       x = "UMAP1",
-       y = "UMAP2") +
-  ggtitle("UMAP Plot")+
-  theme(plot.title = element_text(hjust = 0.5))
+# df_mfi_umap <- df_RSTR_comb %>%
+#   drop_na() %>%
+#   #  filter(Analyte == "IL-6") %>%
+#   mutate(ID = row_number())
+# 
+# df_mfi_meta <- df_mfi_umap %>%
+#   select(ID, batch, group, PTID) #ADULT_RISK_TBINF, M0_KCVSEX, KCHCA_AGE_YR_CURRENT)
+# 
+# ## Run UMAP
+# 
+# umap_fit_mfi <- df_mfi_umap %>%
+#   select(ID, mfi_final) %>%
+#   select(where(is.numeric)) %>%
+#   #  select(ID, AUC_bc) %>%
+#   column_to_rownames("ID") %>%
+#   scale() %>%
+#   uwot::umap(n_neighbors = 15   #n_neighbors = nearest neighbors = perplexity. Default = 15
+#   )
+# 
+# ## Generate the UMAP plot
+# 
+# umap_df_mfi <- umap_fit_mfi %>%   #if using umap::umap: umap_fit$layout %>%
+#   as.data.frame() %>%
+#   rename(UMAP1="V1",
+#          UMAP2="V2") %>%
+#   mutate(ID = row_number()) %>%
+#   inner_join(df_mfi_meta, by = "ID")
+# 
+# umap_df %>%
+#   #  filter(Analyte == "IL-4") %>%
+#   ggplot(aes(x = UMAP1, 
+#              y = UMAP2, 
+#              color = factor(batch),
+#              shape = group)) +
+#   geom_point(size = 3, position = position_jitter(h = 0.15, w = 0.15)) +
+#   labs(shape = "Group",
+#        color = "Batch",
+#        x = "UMAP1",
+#        y = "UMAP2") +
+#   ggtitle("UMAP Plot")+
+#   theme(plot.title = element_text(hjust = 0.5))
 

@@ -19,65 +19,10 @@ date <- 20220809
 #Read in the data
 
 path <- 'G:/Shared drives/Seshadri Lab/Lab Members/Kieswetter_Nathan/data/here/RSTR_Luminex/out/luminex/luminex_all_batches.csv'
-  
+
 df_RSTR_comb <- read_csv(path)
 
-## Make multiple data frames per patient, per analyte to use for AUC calculations.
-
-auc_split <- split(df_RSTR_comb, f = list(df_RSTR_comb$PTID, 
-                                          df_RSTR_comb$Analyte, 
-                                          df_RSTR_comb$stimulation,
-                                          df_RSTR_comb$batch))
-
-# Function to calculate the AUC per the factors defines above.
-
-## Define the AUC (MFI) for the non-background corrected secreted data.
-
-auc_fun1 <- function(x) { # Function to define the AUC 
-  timept <- x$timepoint
-  mfi <- x$final_MFI
-  out <- AUC(x = timept, 
-             y = mfi,
-             method = "trapezoid",
-             absolutearea = TRUE)
-  return(out)
-}
-
-df_auc1 <- sapply(auc_split, auc_fun1) %>%
-  as.data.frame() %>%
-  na.omit() %>%
-  rownames_to_column() %>%
-  setNames(c('rowname', 'AUC_nbc')) # AUC_nbc = not background corrected
-
-df_auc_meta <- str_split_fixed(df_auc1$rowname, "\\.", 4) %>%
-  as.data.frame() %>%
-  setNames(c('PTID', 'Analyte', 'stimulation', 'batch'))
-
-df_auc <- bind_cols(df_auc1, df_auc_meta)
-
-df_auc <- df_auc %>%
-  select(-rowname)
-
-# The following function will calculate the MFI for the background corrected AUC of the MFI over time
-
-auc_fun2 <- function(x) {
-  timept <- x$timepoint
-  mfi <- x$mfi_bkgd_corr
-  out <- AUC(x = timept, 
-             y = mfi,
-             method = "trapezoid",
-             absolutearea = TRUE)
-  return(out)
-}
-
-df_auc2 <- sapply(auc_split, auc_fun2) %>%
-  as.data.frame() %>%
-  na.omit() %>%
-  rownames_to_column()%>%
-  setNames(c('rowname', 'AUC_bc')) %>% # AUC_bc =  background corrected
-  select(-rowname)
-
-df_auc <- bind_cols(df_auc, df_auc2) # merge the two df's together for downstream analysis/graphing
+## AUC
 
 p_neg_ptids <- c("RS102052", "RS102058", "RS102096","RS102097","RS102128",
                  "RS102133","RS102148","RS102150","RS102161","RS102181",
@@ -89,10 +34,34 @@ tst_pos_ptids <- c("RS102056","RS102076","RS102088","RS102095","RS102111",
                    "RS102254","RS102284","RS102297","RS102301","RS102323",
                    "RS102332","RS102358","RS102361","RS102380","RS102410")
 
-df_auc <- df_auc %>%
-  mutate(group = case_when(PTID %in% p_neg_ptids ~ "P_neg",
-                           PTID %in% tst_pos_ptids ~ "TST_pos"
+df_auc <- df_RSTR_comb %>%
+  mutate_at(c("batch"), as.character) %>%
+  group_by(PTID, Analyte, stimulation, batch) %>%
+  summarise(
+    # AUC (MFI) for non-background corrected data
+    AUC_nbc = AUC(
+      x = timepoint,
+      y = final_MFI,
+      method = "trapezoid",
+      absolutearea = TRUE
+    ),
+    # AUC (MFI) for background corrected secreted data
+    AUC_bc = AUC(
+      x = timepoint,
+      y = mfi_bkgd_corr,
+      method = "trapezoid",
+      absolutearea = TRUE
+    )
+  ) %>%
+  as.data.frame() %>%
+  select(AUC_nbc, PTID, Analyte, stimulation, batch, AUC_bc) %>%
+  drop_na() %>%
+  distinct() %>%
+  mutate(group = case_when(
+    PTID %in% p_neg_ptids ~ "P_neg",
+    PTID %in% tst_pos_ptids ~ "TST_pos"
   ))
+
 
 #Add additional Metadata using mutating joins
 
@@ -278,8 +247,6 @@ umap_df %>%
 
 ## UMAP of bulk MFI data (i.e. not area under the curve (AUC)
 
-set.seed(date)
-
 df_mfi_umap <- df_RSTR_comb %>% 
   drop_na() %>%
   #  filter(Analyte == "IL-6") %>%
@@ -323,58 +290,50 @@ umap_df %>%
   theme(plot.title = element_text(hjust = 0.5))
 
 
-
-## Format the data for assessment of background corrected AUC values
-
-df_auc_mdmso <- df_auc %>%
-  filter(stimulation != "DMSO")
-
-df_auc_mdmso$group <- as.factor(df_auc_mdmso$group)
-
-df_auc_mdmso$stimulation <- as.factor(df_auc_mdmso$stimulation)
-
-## Create a list of DF contain per analyte, per stimulation
+## Assessment of background corrected AUC values
 
 ##Background controlled
 
+# Format data then make list of DF per analyte, per stimulation
+df_auc_mdmso <- df_auc %>%
+  filter(stimulation != "DMSO") %>%
+  mutate(group = as.factor(group)) %>%
+  mutate(stimulation = as.factor(stimulation)) 
+
 stim_auc_list <- df_auc_mdmso %>%
   split(f = list(df_auc_mdmso$stimulation,
-                 df_auc_mdmso$Analyte)
-  )
-
-## Non-background controlled
-
-### Format the data for analysis
-
-df_auc$group <- as.factor(df_auc$group)
-
-df_auc$stimulation <- as.factor(df_auc$stimulation)
-
-stim_auc_list_nbc <- df_auc %>%
-  split(f = list(df_auc$stimulation,
-                 df_auc$Analyte)
-)
+                 df_auc_mdmso$Analyte))
 
 # Wilcoxon test
-
-## Background controlled data
-
-wilcox_results <- lapply(stim_auc_list, function(x) with(x, wilcox.test(AUC_bc ~ group)))
+wilcox_results <-
+  lapply(stim_auc_list, function(x)
+    with(x, wilcox.test(AUC_bc ~ group)))
 
 names_list <- names(wilcox_results)
 
-df_wilcox_results <- wilcox_results %>% 
+wilcox_sig_ttest <- wilcox_results %>% 
   map_df(broom::tidy) %>%
   cbind(names_list) %>%
   separate(names_list, c('stimulation', 'analyte'),"[.]") %>%
-  select(stimulation, analyte, statistic, p.value, method, alternative)
-
-wilcox_sig_ttest <- df_wilcox_results %>% # Returns only significant observations
+  select(stimulation, analyte, statistic, p.value, method, alternative) %>%
+  # Returns only significant observations
   filter(p.value <= 0.05)
 
-## Non-background controlled data
+##Non-background controlled
 
-wilcox_results_nbc <- lapply(stim_auc_list_nbc, function(x) with(x, wilcox.test(AUC_nbc ~ group)))
+# Format data then make list of DF per analyte, per stimulation
+df_auc2 <- df_auc %>%
+  mutate(group = as.factor(group)) %>%
+  mutate(stimulation = as.factor(stimulation)) 
+
+stim_auc_list_nbc <- df_auc %>%
+  split(f = list(df_auc$stimulation,
+                 df_auc$Analyte))
+
+# Wilcoxon test
+wilcox_results_nbc <-
+  lapply(stim_auc_list_nbc, function(x)
+    with(x, wilcox.test(AUC_nbc ~ group)))
 
 names_list <- names(wilcox_results_nbc)
 
@@ -382,7 +341,7 @@ df_wilcox_results_nbc <- wilcox_results_nbc %>%
   map_df(broom::tidy) %>%
   cbind(names_list) %>%
   separate(names_list, c('stimulation', 'analyte'),"[.]") %>%
-  select(stimulation, analyte, statistic, p.value, method, alternative)
-
-wilcox_sig_nbs <- df_wilcox_results_nbc %>%
+  select(stimulation, analyte, statistic, p.value, method, alternative) %>%
   filter(p.value <= 0.05)
+
+
