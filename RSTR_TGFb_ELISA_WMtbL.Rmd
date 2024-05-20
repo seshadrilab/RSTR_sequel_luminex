@@ -1,0 +1,170 @@
+---
+title: "RSTR_TGFb_ELISA_WMtbL"
+author: "Nathan Kieswetter_Seshadri Lab"
+date: "2024-05-20"
+output: html_document
+---
+
+Load in appropriate libraries
+
+```{r setup, include=FALSE}
+library(ComplexHeatmap)
+library(tidyverse)
+library(ggpubr)
+library(svglite)
+```
+
+# Read in the TGFb analysis count data
+
+```{r}
+
+df_RSTR_comb <- read.csv("G:\\Shared drives\\Seshadri Lab\\Lab Members\\Kieswetter_Nathan\\data\\here\\RSTR_Luminex\\data\\elisa\\RSTR_TGFb_all_batches_mfi.csv")
+```
+
+# Log-transform mfi data, run paired-T-test, extract the paired T-statistic, and plot a heatmap 
+
+```{r}
+df_RSTR_comb <- df_RSTR_comb %>%
+  mutate_at(vars(mfi_final, DMSO_final_MFI), list(~ifelse(. < 0, 0, .))) %>%
+  mutate(final_MFI_log = log1p(mfi_final),
+         DMSO_final_MFI_log = log1p(DMSO_final_MFI)
+  )                         
+```
+
+# Add a column for the Log10 transformed background connected MFI
+
+```{r}
+df_RSTR_comb <- df_RSTR_comb %>%
+  mutate(backcorr_MFI_log = final_MFI_log - DMSO_final_MFI_log)
+```
+
+# Split the data into subgroups to run the paired-sample T-test
+
+```{r}
+df_list <- df_RSTR_comb %>%
+  split(f = list(df_RSTR_comb$stimulation,
+                 df_RSTR_comb$timepoint))
+
+T.test_results <- lapply(df_list, function(x) with(x, t.test(x = final_MFI_log, 
+                                                             y = DMSO_final_MFI_log, 
+                                                             paired = TRUE, 
+                                                             alternative = "two.sided",
+                                                             na.rm = TRUE)))
+```
+
+# Extract the T-test results and create a data frame of these data
+
+```{r}
+names_list <- names(T.test_results)
+
+df_ttest_results <- T.test_results %>% 
+  map_df(broom::tidy) %>%
+  cbind(names_list) %>%
+  separate(names_list, c('stimulation', 'timepoint'),"[.]") %>%
+  select(stimulation, timepoint, statistic, p.value, method) %>%
+  drop_na() %>%
+  mutate(combined = str_c(stimulation, timepoint, sep = ".", collapse = NULL)) %>%
+  filter(stimulation != "DMSO", #%>% # Remove any DMSO comparisons
+         stimulation == "MTBL") 
+
+df_list_2 <- df_ttest_results %>%
+  split(f = list(df_ttest_results$stimulation))
+
+df_mean_list <- lapply(df_list_2, function(df) {
+  df_mean <- df %>%
+    group_by(timepoint) %>%
+    summarize(
+      statistic_mean = mean(statistic),
+      id = first(combined))
+}) %>%
+  bind_rows() %>%
+  separate(id, c("stimulation"), sep = "\\.") %>%
+  filter(stimulation == "MTBL") %>%
+  mutate(analyte = "TGFb")# Only select the PP1 stimulated samples for the RSTR sequel paper
+
+df_ttest_mat<- df_mean_list %>%
+  pivot_wider(names_from = analyte, values_from = statistic_mean) %>%
+  unite(col = "combined", timepoint, stimulation, sep = ".") %>%
+  column_to_rownames("combined") 
+```
+
+# Extract the metadata for use in the heat map
+
+```{r}
+metadata <- df_ttest_mat %>%
+  as.data.frame() %>%
+  rownames_to_column() %>%
+  separate(rowname, c('timepoint', 'stimulation'),"[.]") %>%
+  select(timepoint)
+
+# Set the annotations
+
+ann <- metadata %>%
+  data.frame()
+
+colAnn <- rowAnnotation(df = ann,
+                        annotation_width = unit(c(1, 4), 'cm'),
+                        gp = gpar(col = "white", lwd = 2),
+                        gap = unit(1, 'mm'),
+                        col = list('timepoint' = c('6' = 'royalblue', 
+                                                   '12' = 'blueviolet', 
+                                                   '24' = 'darkslateblue', 
+                                                   '48' = 'navyblue')
+                        ))
+my_row_order <- c("24.PP1", "48.PP1", "12.PP1", "6.PP1")
+
+Heatmap(df_ttest_mat, 
+        # cluster_rows = group,
+        name = "Paired T-statistic", 
+        right_annotation = colAnn,
+        row_order = my_row_order,    # this works, but is generally non-informative
+        show_column_dend = FALSE,
+        show_row_dend = FALSE,
+        cluster_rows = FALSE, 
+        cluster_columns = FALSE,
+        show_row_names = FALSE,
+        rect_gp = gpar(col = "white", lwd = 2),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%.1f", df_ttest_mat[i, j]), x, y, gp = gpar(fontsize = 10))
+        })
+```
+
+# Extract the time points the highest signal-noise ratio
+
+```{r}
+df_to_plot_mtbl <- df_RSTR_comb %>%
+  filter(stimulation == "MTBL",
+         timepoint == "6",
+         stimulation != "DMSO") %>%
+  mutate(group = recode(group,'P_neg' = 'RSTR',
+                        'TST_pos' = 'LTBI'))
+
+### MTBL
+ggplot(df_to_plot_mtbl, 
+       aes(x = factor(group, levels = c("RSTR", "LTBI")), 
+           y = backcorr_MFI_log,
+           color = group)) + 
+  labs(fill = 'Group') +
+  geom_boxplot(color = "black", outlier.shape = NA) +
+  geom_point(pch = 1, size = 2, lwd = 50, 
+             position = position_jitterdodge(jitter.width = 0.3)) +
+  ggtitle("TGFb*") +
+  xlab(NULL) +
+  ylab(NULL) +
+  # xlab("Group") +
+  # ylab("Background Corrected MFI (Log10)") +
+  theme(plot.title = element_text(hjust = 0.5),)+
+  theme_bw() +
+  theme(text = element_text(family="Arial"),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none",
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()
+  ) + 
+  scale_color_manual(values = c("#4DAF4A","#984EA3")) +
+  stat_compare_means(method = "wilcox.test",
+                     label = "p.signif",
+                     label.x = 1.4,
+                     symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1),
+                                        symbols = c("****", "***", "**", "*", "ns")))
+```
