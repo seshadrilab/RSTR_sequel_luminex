@@ -1,0 +1,314 @@
+---
+title: "RSTR_LuminexAnalysis_PP1 (ESAT-6/CFP-10)"
+author: "Nathan Kieswetter_Seshadri Lab"
+date: "2024-05-16"
+output: html_document
+---
+
+## Load in the required libraries
+
+```{r}
+library(ComplexHeatmap)
+library(tidyverse)
+library(ggpubr)
+library(gridExtra)
+library(circlize)
+```
+
+## Read in the counts
+
+```{r}
+df_RSTR_comb <- read.csv("G:\\data\\here\\RSTR_Luminex\\out\\luminex\\RSTR_luminex_all_batches.csv")
+```
+
+## Log-transform mfi data, run paired-T-test, extract the paired T-statistic, and plot a heatmap
+
+```{r}
+df_RSTR_comb_test <- df_RSTR_comb %>%
+  mutate_at(vars(final_MFI, DMSO_final_MFI), list(~ifelse(. < 0, 0, .))) %>%
+  mutate(final_MFI_log = log1p(final_MFI),
+         DMSO_final_MFI_log = log1p(DMSO_final_MFI)
+  )     
+```
+
+Log10 transformed background connected MFI
+
+```{r}
+df_RSTR_comb_test <- df_RSTR_comb_test %>%
+  mutate(backcorr_MFI_log = final_MFI_log - DMSO_final_MFI_log)
+```
+
+Split the data into subgroups to run the paired-sample T-test
+
+```{r}
+df_list <- df_RSTR_comb_test %>%
+  split(f = list(df_RSTR_comb_test$stimulation,
+                 df_RSTR_comb_test$Analyte,
+                 df_RSTR_comb_test$timepoint))
+
+T.test_results <- lapply(df_list, function(x) with(x, t.test(x = final_MFI_log, 
+                                                             y = DMSO_final_MFI_log, 
+                                                             paired = TRUE, 
+                                                             alternative = "two.sided",
+                                                             na.rm = TRUE)))
+```
+
+Extract the T-test results and create a data frame of these data
+
+```{r}
+names_list <- names(T.test_results)
+
+df_ttest_results <- T.test_results %>% 
+  map_df(broom::tidy) %>%
+  cbind(names_list) %>%
+  separate(names_list, c('stimulation', 'analyte', 'timepoint'),"[.]") %>%
+  select(stimulation, analyte, timepoint, statistic, p.value, method) %>%
+  drop_na() %>%
+  mutate(combined = str_c(stimulation, timepoint, sep = ".", collapse = NULL)) %>%
+  filter(stimulation == "PP1") 
+
+df_list_2 <- df_ttest_results %>%
+  split(f = list(df_ttest_results$stimulation,
+                 df_ttest_results$analyte))
+
+df_mean_list <- lapply(df_list_2, function(df) {
+  df_mean <- df %>%
+    group_by(timepoint) %>%
+    summarize(
+      statistic_mean = mean(statistic),
+      id = first(combined),
+      analyte = first(analyte))
+}) %>%
+  bind_rows() %>%
+  separate(id, c("stimulation"), sep = "\\.") %>%
+  filter(stimulation == "PP1") # Only select the PP1 stimulated samples for the RSTR sequel paper
+
+df_ttest_mat<- df_mean_list %>%
+  pivot_wider(names_from = analyte, values_from = statistic_mean) %>%
+  unite(col = "combined", timepoint, stimulation, sep = ".") %>%
+  column_to_rownames("combined") 
+```
+
+## Portrait of heatmap matrix for publication
+
+```{r}
+df_ttest_mat_port <- t(df_ttest_mat)
+
+df_ttest_mat_port <- df_ttest_mat_port %>%
+  as.data.frame()%>%
+  select("6.PP1", "12.PP1", "24.PP1", "48.PP1" )
+```
+
+## Extract the metadata for use in the heatmap
+
+```{r}
+metadata <- df_ttest_mat %>%
+  as.data.frame() %>%
+  rownames_to_column() %>%
+  separate(rowname, c('timepoint', 'stimulation'),"[.]") %>%
+  select(timepoint)
+
+# Set the annotations
+
+ann <- metadata %>%
+  data.frame()
+
+#colnames(ann) <- c("stimulation", "timepoint")
+
+colAnn <- rowAnnotation(df = ann,
+                        annotation_width = unit(c(1, 4), 'cm'),
+                        gp = gpar(col = "white", lwd = 2),
+                        gap = unit(1, 'mm'),
+                        col = list('timepoint' = c('6' = 'lightblue4', 
+                                                   '12' = 'lightgoldenrod', 
+                                                   '24' = 'lightgray', 
+                                                   '48' = 'lightpink3')
+                        ))
+
+col_fun = colorRamp2(c(-10, 0, 15), c("blue", "white", "red"))
+lgd = Legend(col_fun = col_fun, title = "Paired T-statistic")
+
+Heatmap(df_ttest_mat,
+        # cluster_rows = group,
+        name = "Paired T-statistic", 
+        right_annotation = colAnn,
+        show_column_dend = TRUE,
+        show_row_dend = TRUE,
+        show_row_names = FALSE,
+        rect_gp = gpar(col = "white", lwd = 2),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+          grid.text(sprintf("%.1f", df_ttest_mat[i, j]), x, y, gp = gpar(fontsize = 10))
+        })
+```
+
+## Portrait Heat Map
+
+```{r}
+hm <- Heatmap(df_ttest_mat_port, 
+        # cluster_rows = group,
+        name = "Paired T-statistic", 
+#        right_annotation = colAnn,
+        show_column_dend = FALSE,
+        show_row_dend = FALSE,
+        show_row_names = TRUE,
+        column_order = order(as.numeric(gsub(".PP1", "", colnames(df_ttest_mat_port)))),
+#         row_order = c("GM-CSF","IFNa",  "IFNy","IL-10", "IL-12p70","IL-13","IL-15","IL-17A","IL-18","IL-1a",
+#                       "IL-1b","IL-1RA","IL-2","IL-21","IL-22","IL-23","IL-27","IL-31","IL-4","IL-5","IL-6",     
+#                       "IL-7","IL-8","IL-9","IP-10","TNFa","TNFb"),  
+        rect_gp = gpar(col = "white", lwd = 2),
+        # cell_fun = function(j, i, x, y, width, height, fill) {
+        #   grid.text(sprintf("%.1f", df_ttest_mat_port[i, j]), x, y, gp = gpar(fontsize = 10))
+        # }
+)
+
+hm
+
+row_order_hm <- row_order(hm)
+```
+
+## Extract the time points the highest signal-noise ratio
+
+```{r}
+df_mean_list_2 <- lapply(df_list_2, function(df) {
+  df_mean <- df %>%
+    group_by(timepoint) %>%
+    summarize(
+      statistic_mean = mean(statistic),
+      id = first(combined),
+      analyte = first(analyte))}) %>%
+  bind_rows() %>%
+  separate(id, c("stimulation"), sep = "\\.") %>%
+  mutate(statistic_mean = scale(statistic_mean)) %>% #scaled to fit on 
+  split(f = list(df_mean_list$stimulation,
+                 df_mean_list$analyte))
+```
+
+Function to select the time point with the highest signal to noise ratio
+
+```{r}
+select_highest_row <- function(df, col_name) {
+  df[which.max(df[[col_name]]),]
+}
+
+# Determine the best time points
+
+highest_rows <- lapply(df_mean_list_2, 
+                       select_highest_row, 
+                       col_name = "statistic_mean") %>%
+                bind_rows()
+```
+
+Select the PP1 (ESAT-6/CFP-10) stimulated samples and Subset the original data by the selected time points calculated in "highest rows"
+
+```{r}
+
+df_RSTR_comb_test_pp1 <- df_RSTR_comb_test %>%
+  filter(stimulation == "PP1") %>% #only interested in PP1
+  mutate(group = recode(group,'P_neg' = 'RSTR',
+                        'TST_pos' = 'LTBI'))
+
+# Loop to pull out timepoints with best signal to noise ratio for plotting!
+df_to_plot <- list()
+
+# iterate through each row in highest_rows
+for (i in 1:nrow(highest_rows)) {
+  
+  # get the current row data in highest_rows
+  current_row <- highest_rows[i, c("timepoint", "analyte", "stimulation")]
+  
+  # find rows in df_RSTR_comb_test that match the current row based on timepoint, analyte, and stimulation
+  matching_rows <- df_RSTR_comb_test_pp1 %>% 
+    filter(timepoint == current_row$timepoint,
+           Analyte == current_row$analyte,
+           stimulation == current_row$stimulation)
+  
+  # add the matching rows to the matched_rows list
+  if (nrow(matching_rows) > 0) {
+    df_to_plot[[i]] <- matching_rows
+  } else {
+    df_to_plot[[i]] <- data.frame(matrix(nrow = 0, ncol = ncol(df_RSTR_comb_test_pp1)))
+  }
+}
+
+df_to_plot <- do.call(rbind, df_to_plot) # combine the matched rows into a single dataframe
+
+# Splits df into multiple df's based on analyte (for plotting)
+
+analyte_list <- split(df_to_plot, f = df_to_plot$Analyte)
+
+tmp <- df_to_plot %>%
+  filter(stimulation != "DMSO")
+#analyte_list_noDMSO <-  split(tmp, f = tmp$Analyte)
+
+analyte_list_noDMSO <- split(tmp, f = list(tmp$Analyte))
+```
+
+## Plot all cytokines as a measure background corrected MFI values over time (i.e. DMSO subtracted)
+
+```{r}
+plotdata3 <- function(x) { 
+  ggplot(analyte_list_noDMSO[[x]], 
+         aes(x = factor(group, levels = c("RSTR", "LTBI")), 
+             y = backcorr_MFI_log,
+             color = group)) + 
+    ggtitle(names(analyte_list_noDMSO)[[x]]) +
+ #   labs(fill = 'Group') +
+    geom_boxplot(color = "black", outlier.shape = NA) +
+    geom_point(pch = 1, size = 2, lwd = 50, 
+               position = position_jitterdodge(jitter.width = 0.3)) +
+    xlab(NULL) + #comment this out as needed
+    ylab(NULL) + #comment this out as needed
+    # xlab("Group") +                             #comment this out for grid
+    # ylab("Background Corrected MFI (Log10)") + # comment this out for grid
+    theme(plot.title = element_text(hjust = 0.5))+
+    theme_bw() +
+    theme(text = element_text(family="Arial"),
+          # axis.text.x = element_text(size = 15),  
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none",
+          axis.text.x = element_blank(), #comment this out as needed
+          axis.ticks.x = element_blank() #comment this out to remove axis
+    ) + 
+    ylim(NA, max(analyte_list_noDMSO[[x]]$backcorr_MFI_log) + 0.5) +
+    xlab(NULL) + #comment this out as needed
+    ylab(NULL) + #comment this out as needed
+    scale_color_manual(values = c("#4DAF4A","#984EA3")) +
+    stat_compare_means(method = "t.test",
+                       paired = FALSE,
+                       label = "p.signif",
+                       label.x = 1.5,
+                       label.y = max(analyte_list_noDMSO[[x]]$backcorr_MFI_log) - 0.01, 
+                       symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1),
+                                          symbols = c("****", "***", "**", "*", "ns"))
+)
+}
+
+List_2 <- lapply(seq_len(length(analyte_list_noDMSO)), plotdata3)
+```
+
+## Arrange graphs in a grid to match the order in the clustered heatmap
+
+```{r}
+highest_rows2 <- highest_rows %>%
+  mutate(row_num = row_number()) %>% 
+  mutate(row_num = factor(row_num, levels = as.character(as.numeric(row_order_hm)))) %>% 
+  arrange(row_num) %>%
+  column_to_rownames(var = "row_num")
+
+# Define the order of the plots
+
+plot_order <- as.numeric(row.names(highest_rows2))
+
+# Rearrange the list of plots
+
+new_list <- List_2[plot_order]
+
+# Generate the arranged plots using grid.arrange()
+
+grid.arrange(grobs = matrix(new_list),
+             ncol = 5,
+             left = gridtext::richtext_grob("Background Subtracted MFI (log10)", rot = 90),
+             bottom = gridtext::richtext_grob(text =  ' Groups:  <span style="color:purple"> RSTR</span>  <span style="color:limegreen">LTBI</span>'),
+             clip = FALSE
+             )
+```
